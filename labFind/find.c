@@ -23,12 +23,12 @@ void recursiveFind (DIR *parent, char* pathToPrint, char* subString, char* (*loc
                 continue;
             }
 
-            char newPath[FILENAME_MAX];
+            char newPath[PATH_MAX];
 
             if (locateSubString(entry->d_name, subString) != NULL) {
                 printf("%s/%s\n", pathToPrint, entry->d_name);
             }
-            snprintf(newPath, FILENAME_MAX, "%s/%s", pathToPrint, entry->d_name);
+            snprintf(newPath, PATH_MAX, "%s/%s", pathToPrint, entry->d_name);
 
             fd = openat(dirfd(parent), entry->d_name, O_DIRECTORY);
             if (fd > 0) {
