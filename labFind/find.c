@@ -1,55 +1,62 @@
-#include <stdio.h>
-#include <stdlib.h>
 #include <dirent.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
 #include <sys/types.h>
-
+#include <sys/stat.h>
 
 //si no la declaro el compilador no la toma, a diferencia de strstr
 char * strcasestr(const char*, const char*);
 
-void recursiveFind(char *path, char* subString, char* (*locateSubString)(const char*,const char*));
 
-
-int main(int argc, char* argv[]) {
-    if (argc > 2) {
-        recursiveFind(".", argv[2], strcasestr);
-    } else {
-        recursiveFind(".", argv[1], strstr);
-    }
-    return 0;
-}
-
-
-
-void recursiveFind(char *path, char* subString, char* (*locateSubString)(const char*,const char*)) {
-
-    DIR *directory = opendir(path);
-    if (directory == NULL) {
-        perror("error con opendir");
-        exit(-1);
-    }
-
+void recursiveFind (DIR *parent, char* pathToPrint, char* subString, char* (*locateSubString)(const char*,const char*))
+{
     struct dirent *entry;
-    while (entry = readdir(directory)) {
-        char newPath[FILENAME_MAX];
+    DIR *directory;
+    int fd;
+
+    while ((entry = readdir(parent)) != NULL) {
         if (entry->d_type == DT_DIR) {
-            if (strstr(entry->d_name, ".") != NULL) {
+            if ((strstr(entry->d_name, ".") != NULL) || (strstr(entry->d_name, "..")) != NULL) {
                 continue;
             }
-            //Concateno de donde vengo con "/" y el nombre del dir que sigue. El tamaño es para que no se pase del tamaño del buffer
-            snprintf(newPath, FILENAME_MAX, "%s/%s", path, entry->d_name);
+
+            char newPath[FILENAME_MAX];
+
             if (locateSubString(entry->d_name, subString) != NULL) {
-                printf("%s\n", newPath);
+                printf("%s/%s\n", pathToPrint, entry->d_name);
             }
-            recursiveFind(newPath, subString, locateSubString);
-        //Asumo que es DT_DIR o DT_REG, no tengo en cuenta el desconocido    
+            snprintf(newPath, FILENAME_MAX, "%s/%s", pathToPrint, entry->d_name);
+
+            fd = openat(dirfd(parent), entry->d_name, O_DIRECTORY);
+            if (fd > 0) {
+                directory = fdopendir(fd);
+                recursiveFind(directory, newPath, subString, locateSubString);
+                closedir(directory);
+
+            } else {
+                perror("open");
+            }
         } else if (locateSubString(entry->d_name, subString) != NULL) {
-            printf("%s/%s\n", path, entry->d_name);
+            printf("%s/%s\n", pathToPrint, entry->d_name);
         }
     }
 }
 
+int main (int argc, char *argv[]) {
+    DIR *dir = opendir(".");
+    if (dir == NULL) {
+        perror("error con opendir");
+        exit(-1);
+    }
 
+    if (argc > 2) {
+        recursiveFind(dir,".", argv[2], strcasestr);
+    } else {
+        recursiveFind(dir,".", argv[1], strstr);
+    }
 
+    return 0;
+}
